@@ -1,0 +1,49 @@
+from bs4 import BeautifulSoup
+import pandas as pd
+
+# Load the HTML content (assuming 'html_content' contains the HTML source code)
+with open('/path/to/your/html/file.html', 'r') as file:
+    html_content = file.read()
+
+soup = BeautifulSoup(html_content, 'html.parser')
+
+# Find all job cards in the HTML
+job_cards = soup.find_all('article', class_='job-card')
+
+# Extract job data from each job card
+jobs_data = []
+for job_card in job_cards:
+    title = job_card.find('a', attrs={"data-qa": "job-card-title"}).get_text(strip=True)
+    recruiter = job_card.find('a', class_="gtmJobListingPostedBy").get_text(strip=True)
+    role_type = job_card.find('li', text=lambda t: "full-time" in t or "part-time" in t)
+    role_type = role_type.get_text(strip=True) if role_type else None
+    job_type = job_card.find('li', text=lambda t: "work from home" in t.lower())
+    job_type = job_type.get_text(strip=True) if job_type else None
+    
+    # Find all 'li' elements for metadata items and extract salary and location
+    metadata_items = job_card.find_all('li', class_='job-card_jobMetadata__item___QNud')
+    salary = None
+    location = None
+
+    for item in metadata_items:
+        svg_use = item.find('svg').find('use', recursive=False)
+        if svg_use and '#svg-salary' in svg_use.get('xlink:href', ''):
+            salary = item.get_text(strip=True)
+        elif svg_use and '#svg-location' in svg_use.get('xlink:href', ''):
+            location = item.get_text(strip=True)
+    
+    jobs_data.append({
+        'Title': title,
+        'Recruiter': recruiter,
+        'Salary': salary,
+        'Location': location,
+        'Role Type': role_type,
+        'Job Type': job_type
+    })
+
+# Create a DataFrame from the jobs data
+df_jobs = pd.DataFrame(jobs_data)
+
+# Saving the DataFrame as a CSV file
+csv_file_path = '/mnt/data/reed_job_data.csv'
+df_jobs.to_csv(csv_file_path, index=False)
